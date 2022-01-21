@@ -25,7 +25,7 @@ date_time = datetime.now(pytz.timezone("Australia/Perth")).strftime("%d/%m/%Y %H
 debug = False
 
 # Database location
-db_file = "/home/fletcher/covid/exposures.db"  # will be created on first use
+db_file = "path/to/exposures.db"  # will be created on first use
 
 # Slack Alerts
 slackAlerts = True
@@ -72,19 +72,22 @@ def create_connection(db_file):
 def post_message_to_slack(blocks):
 
     for webhook_url in webhook_urls:
-        slack_data = {"text": "New exposure sites have been added", "blocks": blocks}
+        while len(blocks) > 49:
+            currentBlocks = blocks[:49]
+            blocks = blocks[49:]
+            slack_data = {"text": "New exposure sites have been added", "blocks": currentBlocks}
 
-        response = requests.post(
-            webhook_url,
-            data=json.dumps(slack_data),
-            headers={"Content-Type": "application/json"},
-        )
-
-        if response.status_code != 200:
-            raise ValueError(
-                "Request to slack returned an error %s, the response is:\n%s"
-                % (response.status_code, response.text)
+            response = requests.post(
+                webhook_url,
+                data=json.dumps(slack_data),
+                headers={"Content-Type": "application/json"},
             )
+
+            if response.status_code != 200:
+                raise ValueError(
+                    "Request to slack returned an error %s, the response is:\n%s"
+                    % (response.status_code, response.text)
+                )
 
         print("Slack sent")
         return True
@@ -243,8 +246,8 @@ for exposure in alerts:
     args = (datentime, suburb, location, updated, advice)
     result = dbconn.execute(query, args)
 
-    if debug:
-        print(slacklist)
+if debug:
+    print(slacklist)
 
 
 # kludge ugh
