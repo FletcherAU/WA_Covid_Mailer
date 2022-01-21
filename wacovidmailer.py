@@ -22,64 +22,19 @@ date_time = datetime.now(pytz.timezone("Australia/Perth")).strftime("%d/%m/%Y %H
 ### CONFIGURATION ITEMS ###
 
 # Debug mode disables sending of alerts
-debug = True
+debug = False
 
 # Database location
-db_file = "/path/to/exposures.db"  # will be created on first use
-
-# Email details
-emailAlerts = False
-smtpServ = ""
-smtpPort = ""
-fromAddr = ""
-replyAddr = ""
-subjLine = f"Alert: Updated WA covid-19 exposure sites ({date_time})"
-destAddr = [
-    "email1@example.com", 
-    "email2@example.com"
-]
+db_file = "/home/fletcher/covid/exposures.db"  # will be created on first use
 
 # Slack Alerts
-slackAlerts = False
-webhook_urls = [
-    "https://hooks.slack.com/services/XXXXXXX/XXXXXXX/XXXXXXX",
-    "https://hooks.slack.com/services/XXXXXXX/XXXXXXX/XXXXXXX"
-]
-
-# Discord Alerts
-discordAlerts = False
-discord_webhook_urls = [
-    "https://discordapp.com/api/webhooks/XXXXXXX/XXXXXXX",
-    "https://discordapp.com/api/webhooks/XXXXXXX/XXXXXXX"
-]
-
-# Dreamhost Announce
-dreamhostAnounces = False
-apiKey = ""
-listDomain = ""
-listName = ""
-subjLine = f"Alert: Updated WA covid-19 exposure sites ({date_time})"
-
-# Error Alert Email
-adminAlerts = False
-adminSmtpServ = ""
-adminSmtpPort = ""
-adminFromAddr = ""
-adminSmtpUser = ""
-adminSmtpPass = ""
-AdminReplyAddr = ""
-AdminSubjLine = f"Alert: WA Covid Mailer Error ({date_time})"
-AdminDestAddr = [
-    "email1@example.com", 
-    "email2@example.com"
-]
+slackAlerts = True
+webhook_urls = ["https://hooks.slack.com/services/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"]
 
 ### END OF CONFIGURATION ITEMS
 
-
 if debug:
     db_file = "exposures-debug.db"
-
 
 def create_connection(db_file):
 
@@ -114,57 +69,10 @@ def create_connection(db_file):
     return conn
 
 
-def sendEmails(body):
-
-    for destEmail in destAddr:
-
-        message = f"""To: {destEmail}
-From: {fromAddr}
-Reply-To: {replyAddr}
-Subject: {subjLine}
-
-
-{body}.""".encode("ascii", "replace")
-
-        try:
-            context = ssl.create_default_context()
-
-            with smtplib.SMTP_SSL(smtpServ, smtpPort, context=context) as server:
-                server.sendmail(fromAddr, destEmail, message)
-                print(f"Email sent to {destEmail}")
-        except smtplib.SMTPException as e:
-            print("SMTP error occurred: " + str(e))
-
-
-def sendAdminAlert(errorMsg):
-
-    if(adminAlerts):
-        for destEmail in AdminDestAddr:
-
-            message = f"""To: {AdminDestAddr}
-From: {adminFromAddr}
-Reply-To: {AdminReplyAddr}
-Subject: {AdminSubjLine}
-
-
-{errorMsg}.""".encode("ascii", "replace")
-
-            try:
-                context = ssl.create_default_context()
-
-                with smtplib.SMTP_SSL(adminSmtpServ, adminSmtpPort, context=context) as server:
-                    server.sendmail(adminFromAddr, adminDestEmail, message)
-                    print(f"Email sent to {destEmail}")
-            except smtplib.SMTPException as e:
-                print("SMTP error occurred: " + str(e))
-    else:
-        print("Admin alerts disabled")
-
-
-def post_message_to_slack(text, blocks=None):
+def post_message_to_slack(blocks):
 
     for webhook_url in webhook_urls:
-        slack_data = {"text": text}
+        slack_data = {"text": "New exposure sites have been added", "blocks": blocks}
 
         response = requests.post(
             webhook_url,
@@ -179,72 +87,6 @@ def post_message_to_slack(text, blocks=None):
             )
 
         print("Slack sent")
-
-
-def chunky_alerts(text, delimeter="\n\n", max_length=1990):
-    i = 0
-    while i < len(text):
-        # Note: if the last chunk is less than max_length, it will be included
-        if i + max_length > len(text):
-            yield text[i:]
-            break
-
-        nearest_delim = text[i:i+max_length][::-1].index(delimeter) # Calculate the nearest delimiter index, by reversing the string and finding the first occurence of the delimeter
-        yield text[i:i+max_length-nearest_delim -len(delimeter)] # we don't need the additional delim chars here
-        i += max_length - nearest_delim # we need them here, so we don't end up including a bunch of line breaks
-
-
-def post_message_to_discord(text, blocks=None):
-
-    for discord_webhook_url in discord_webhook_urls:
-
-        # Discord doesn't let us post more than 2000 characters at a time
-        # so we need to split and make individual posts every 2 seconds to avoid rate limits.
-        # This may spam notifications depending on your server settings
-        alert_total = len(list(chunky_alerts(text)))
-        for alert_number, alert in enumerate(chunky_alerts(text)):
-            discord_data = {"content": alert}
-
-            response = requests.post(
-                discord_webhook_url,
-                data=json.dumps(discord_data),
-                headers={"Content-Type": "application/json"},
-            )
-
-            if response.status_code != 200|204: #Discord returns 204 no data on success
-                raise ValueError(
-                    "Request to discord returned an error %s, the response is:\n%s"
-                    % (response.status_code, response.text)
-                )
-
-            print("Discord sent %s of %s" % (alert_number, alert_total))
-            time.sleep(2)        
-
-
-def sendDhAnnounce(comms):
-
-    url = "https://api.dreamhost.com/"
-
-    bodyParams = {
-        "key": "somevalue",
-    }
-    data = {
-        "key": apiKey,
-        "cmd": "announcement_list-post_announcement",
-        "listname": listName,
-        "domain": listDomain,
-        "subject": subjLine,
-        "message": comms,
-        "charset": "utf-8",
-        "type": "text",
-        "duplicate_ok": "1",
-    }
-
-    x = requests.post(url, data=data)
-
-    print(x.text)
-    return x.status_code
-
 
 def getDetails():
 
@@ -263,7 +105,7 @@ def getDetails():
     header = doc.xpath('//table[@id="locationTable"]')[0][0]
     headerRows = header.xpath(".//th")
 
-    if (headerRows[0].text_content() == 'Exposure date & time' and 
+    if (headerRows[0].text_content() == 'Exposure date & time' and
     headerRows[1].text_content() == 'Suburb' and
     headerRows[2].text_content() == 'Location' and
     headerRows[3].text_content() == 'Date updated' and
@@ -287,23 +129,53 @@ def cleanString(location):
         newLoc = newLoc + line.lstrip().rstrip() + ", "
     return newLoc.rstrip(", ").replace(", , ", ", ").rstrip("\r\n")
 
-
 def buildDetails(exposure):
     datentime = cleanString(exposure[1].text_content())
     suburb = cleanString(exposure[2].text_content())
     location = cleanString(exposure[3].text_content())
     updated = cleanString(exposure[4].text_content())
     advice = cleanString(exposure[5].text_content())
+    details = {"date":datentime,
+               "suburb":suburb,
+               "location":location,
+               "updated":updated,
+               "advice":advice}
+    blocks = [{
+			"type": "section",
+			"fields": [
+				{
+					"type": "mrkdwn",
+					"text": "*Suburb*: "+details["suburb"]
+				},
+				{
+					"type": "mrkdwn",
+					"text": "*Location*: "+details["location"]
+				},
+				{
+					"type": "mrkdwn",
+					"text": "*Date*: "+details["date"]
+				},
+				{
+					"type": "mrkdwn",
+					"text": "*Advice*: "+details["advice"]
+				}
+			]
+		},
+		{
+			"type": "context",
+			"elements": [
+				{
+					"type": "mrkdwn",
+					"text": "Updated "+details["updated"]
+				}
+			]
+		},
+		{
+			"type": "divider"
+		}
+	]
 
-    exposure_details = f"""Date and Time: {datentime}
-Suburb: {suburb}
-Location: {location}
-Updated: {updated}
-Advice: {advice}\n\n"""
-
-    exposure_details = exposure_details.rstrip("\r\n") + "\n\n"
-
-    return exposure_details
+    return blocks
 
 def filterExistingExposures(exposure):
 
@@ -319,8 +191,8 @@ def filterExistingExposures(exposure):
         updated = cleanString(exposure[4].text_content())
         advice = cleanString(exposure[5].text_content())
 
-        query = """SELECT count(id) FROM exposures WHERE 
-                    datentime = ? 
+        query = """SELECT count(id) FROM exposures WHERE
+                    datentime = ?
                     AND suburb = ?
                     AND location = ?
                     AND updated = ?
@@ -347,18 +219,16 @@ shutil.copy(db_file, f"{db_file}.bak")
 try:
     exposures = getDetails()
 except:
-    sendAdminAlert("Unable to fetch data, please investigate")
     exit()
 
 # filter list of exposures to remove known/previously seen exposures
 alerts = filterExistingExposures(exposures)
 
 # for each new exposure add it to the DB and add it to a string for comms
-comms = ""
+slacklist = []
 
 for exposure in alerts:
-
-    comms = comms + buildDetails(exposure)
+    slacklist += buildDetails(exposure)
 
     datentime = cleanString(exposure[1].text_content())
     suburb = cleanString(exposure[2].text_content())
@@ -366,7 +236,7 @@ for exposure in alerts:
     updated = cleanString(exposure[4].text_content())
     advice = cleanString(exposure[5].text_content())
 
-    query = f"""INSERT INTO exposures (datentime, suburb, location, updated, advice) 
+    query = f"""INSERT INTO exposures (datentime, suburb, location, updated, advice)
                 VALUES (?,?,?,?,?) """
 
     args = (datentime, suburb, location, updated, advice)
@@ -380,25 +250,15 @@ for exposure in alerts:
 mailPostSuccess = 200
 
 if not debug:
-    if len(comms) > 0 and dreamhostAnounces:
-        mailPostSuccess = sendDhAnnounce(comms)
-
-    if len(comms) > 0 and emailAlerts:
-        sendEmails(comms)
-
-    if len(comms) > 0 and slackAlerts:
-        post_message_to_slack(comms)
-
-    if len(comms) > 0 and discordAlerts:
-        post_message_to_discord(comms)
-
+    if len(slacklist) > 0 and slackAlerts:
+        post_message_to_slack(slacklist)
 
 dbconn.commit()
-# we don't close as we're using autocommit, this results in greater 
+# we don't close as we're using autocommit, this results in greater
 # compatability with different versions of sqlite3
 
 if len(comms) > 0 and dreamhostAnounces and mailPostSuccess != 200 and not debug:
-    print(result)
+    #print(result)
     os.replace(f"{db_file}.bak", db_file)
     sendAdminAlert("Unable to send mail, please investigate")
 else:
