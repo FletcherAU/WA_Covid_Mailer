@@ -29,7 +29,7 @@ db_file = "/home/fletcher/covid/exposures.db"  # will be created on first use
 
 # Slack Alerts
 slackAlerts = True
-webhook_urls = ["https://hooks.slack.com/services/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"]
+webhook_urls = [""]
 
 ### END OF CONFIGURATION ITEMS
 
@@ -87,6 +87,7 @@ def post_message_to_slack(blocks):
             )
 
         print("Slack sent")
+        return True
 
 def getDetails():
 
@@ -243,7 +244,7 @@ for exposure in alerts:
     result = dbconn.execute(query, args)
 
     if debug:
-        print(comms)
+        print(slacklist)
 
 
 # kludge ugh
@@ -251,13 +252,13 @@ mailPostSuccess = 200
 
 if not debug:
     if len(slacklist) > 0 and slackAlerts:
-        post_message_to_slack(slacklist)
+        slack = post_message_to_slack(slacklist)
 
 dbconn.commit()
 # we don't close as we're using autocommit, this results in greater
 # compatability with different versions of sqlite3
 
-if len(comms) > 0 and dreamhostAnounces and mailPostSuccess != 200 and not debug:
+if len(slacklist) > 0 and not slack and not debug:
     #print(result)
     os.replace(f"{db_file}.bak", db_file)
     sendAdminAlert("Unable to send mail, please investigate")
